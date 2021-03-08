@@ -121,7 +121,7 @@ func NewClientFromConfig(config ClientConfig) (*Client, error) {
 }
 
 func NewClientFromEnvironment() (*Client, error) {
-	configPath, exists := os.LookupEnv("RESTVIRT_PROFILE")
+	configPath, exists := os.LookupEnv("RESTVIRT_CONFIG")
 	if !exists {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
