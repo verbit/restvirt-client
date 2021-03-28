@@ -3,13 +3,14 @@ package restvirt
 import (
 	"bytes"
 	"encoding/json"
-	"strconv"
+	"fmt"
 )
 
 type PortForwarding struct {
 	SourcePort uint16 `json:"source_port"`
 	TargetPort uint16 `json:"target_port"`
 	TargetIP   string `json:"target_ip"`
+	Protocol   string `json:"protocol"`
 }
 
 var forwardingPath = "forwardings"
@@ -30,7 +31,7 @@ func (c *Client) CreatePortForwarding(forwarding PortForwarding) (string, error)
 		return "", err
 	}
 
-	return strconv.Itoa(int(forwarding.SourcePort)), nil
+	return fmt.Sprintf("%d-%s", int(forwarding.SourcePort), forwarding.Protocol), nil
 }
 
 func (c *Client) GetPortForwarding(id string) (*PortForwarding, error) {
