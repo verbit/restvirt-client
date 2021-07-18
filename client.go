@@ -154,6 +154,15 @@ func NewClientFromEnvironment() (*Client, error) {
 }
 
 func (c *Client) doRequest(method string, body io.Reader, paths ...string) (*http.Response, error) {
+	return c.doRequestWithQueryParams(method, body, []KeyValue{}, paths...)
+}
+
+type KeyValue struct {
+	Key   string
+	Value string
+}
+
+func (c *Client) doRequestWithQueryParams(method string, body io.Reader, query []KeyValue, paths ...string) (*http.Response, error) {
 	u, err := url.Parse(c.Host)
 	if err != nil {
 		return nil, err
@@ -164,6 +173,11 @@ func (c *Client) doRequest(method string, body io.Reader, paths ...string) (*htt
 	if err != nil {
 		return nil, err
 	}
+	q := request.URL.Query()
+	for _, kv := range query {
+		q.Add(kv.Key, kv.Value)
+	}
+	request.URL.RawQuery = q.Encode()
 	request.Header.Set("Content-Type", "application/json")
 	return c.HTTPClient.Do(request)
 }
