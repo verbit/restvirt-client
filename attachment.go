@@ -1,7 +1,9 @@
 package restvirt
 
 import (
-	"encoding/json"
+	"context"
+
+	"github.com/verbit/restvirt-client/pb"
 )
 
 type VolumeAttachment struct {
@@ -9,55 +11,32 @@ type VolumeAttachment struct {
 }
 
 func (c *Client) CreateAttachment(domainID string, volumeID string) (*VolumeAttachment, error) {
-	resp, err := c.doRequest("PUT", nil, domainPath, domainID, volumePath, volumeID)
+	attachment, err := c.VolumeServiceClient.AttachVolume(context.Background(), &pb.VolumeAttachmentIdentifier{
+		DomainId: domainID,
+		VolumeId: volumeID,
+	})
 	if err != nil {
 		return nil, err
 	}
+	return &VolumeAttachment{DiskAddress: attachment.DiskAddress}, nil
 
-	err = checkForErrors(resp)
-	if err != nil {
-		return nil, err
-	}
-
-	var attachment VolumeAttachment
-	err = json.NewDecoder(resp.Body).Decode(&attachment)
-	if err != nil {
-		return nil, err
-	}
-
-	return &attachment, nil
 }
 
 func (c *Client) GetAttachment(domainID string, volumeID string) (*VolumeAttachment, error) {
-	resp, err := c.doRequest("GET", nil, domainPath, domainID, volumePath, volumeID)
+	attachment, err := c.VolumeServiceClient.GetVolumeAttachment(context.Background(), &pb.VolumeAttachmentIdentifier{
+		DomainId: domainID,
+		VolumeId: volumeID,
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	err = checkForErrors(resp)
-	if err != nil {
-		return nil, err
-	}
-
-	var attachment VolumeAttachment
-	err = json.NewDecoder(resp.Body).Decode(&attachment)
-	if err != nil {
-		return nil, err
-	}
-
-	return &attachment, nil
+	return &VolumeAttachment{DiskAddress: attachment.DiskAddress}, nil
 }
 
 func (c *Client) DeleteAttachment(domainID string, volumeID string) error {
-	resp, err := c.doRequest("DELETE", nil, domainPath, domainID, volumePath, volumeID)
-	if err != nil {
-		return err
-	}
-
-	err = checkForErrors(resp)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := c.VolumeServiceClient.DetachVolume(context.Background(), &pb.VolumeAttachmentIdentifier{
+		DomainId: domainID,
+		VolumeId: volumeID,
+	})
+	return err
 }

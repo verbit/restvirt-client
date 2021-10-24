@@ -1,8 +1,9 @@
 package restvirt
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
+
+	"github.com/verbit/restvirt-client/pb"
 )
 
 type Domain struct {
@@ -17,59 +18,36 @@ type Domain struct {
 var domainPath = "domains"
 
 func (c *Client) CreateDomain(domain Domain) (string, error) {
-	domainJSON, err := json.Marshal(domain)
+	d, err := c.DomainServiceClient.CreateDomain(context.Background(), &pb.CreateDomainRequest{Domain: &pb.Domain{
+		Uuid:      domain.UUID,
+		Name:      domain.Name,
+		Vcpu:      uint32(domain.VCPU),
+		Memory:    uint64(domain.MemoryMiB),
+		PrivateIp: domain.PrivateIP,
+		UserData:  domain.UserData,
+	}})
 	if err != nil {
 		return "", err
 	}
-
-	resp, err := c.doRequest("POST", bytes.NewBuffer(domainJSON), domainPath)
-	if err != nil {
-		return "", err
-	}
-
-	err = checkForErrors(resp)
-	if err != nil {
-		return "", err
-	}
-
-	var uuidDomain Domain
-	err = json.NewDecoder(resp.Body).Decode(&uuidDomain)
-	if err != nil {
-		return "", err
-	}
-
-	return uuidDomain.UUID, nil
+	return d.Uuid, err
 }
 
 func (c *Client) GetDomain(id string) (*Domain, error) {
-	resp, err := c.doRequest("GET", nil, domainPath, id)
+	domain, err := c.DomainServiceClient.GetDomain(context.Background(), &pb.GetDomainRequest{Uuid: id})
 	if err != nil {
 		return nil, err
 	}
-
-	err = checkForErrors(resp)
-	if err != nil {
-		return nil, err
-	}
-	var domain Domain
-	err = json.NewDecoder(resp.Body).Decode(&domain)
-	if err != nil {
-		return nil, err
-	}
-
-	return &domain, nil
+	return &Domain{
+		UUID:      domain.Uuid,
+		Name:      domain.Name,
+		VCPU:      int(domain.Vcpu),
+		MemoryMiB: int(domain.Memory),
+		PrivateIP: domain.PrivateIp,
+		UserData:  domain.UserData,
+	}, nil
 }
 
 func (c *Client) DeleteDomain(id string) error {
-	resp, err := c.doRequest("DELETE", nil, domainPath, id)
-	if err != nil {
-		return err
-	}
-
-	err = checkForErrors(resp)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := c.DomainServiceClient.DeleteDomain(context.Background(), &pb.DeleteDomainRequest{Uuid: id})
+	return err
 }

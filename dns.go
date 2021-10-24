@@ -1,8 +1,11 @@
 package restvirt
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/verbit/restvirt-client/pb"
 )
 
 type DNSRecord struct {
@@ -20,65 +23,61 @@ func (m DNSRecord) ID() string {
 	return id(m.Name, m.Type)
 }
 
-var dnsPath = "dns"
+func parseDNSID(id string) (string, string, error) {
+	s := strings.Split(id, "-")
+	if len(s) != 2 {
+		return "", "", fmt.Errorf("ID looks fishy")
+	}
+	return s[0], s[1], nil
+}
 
 func (c *Client) SetDNSRecord(record DNSRecord) error {
-	recordJSON, err := json.Marshal(record)
-	if err != nil {
-		return err
-	}
-
-	resp, err := c.doRequest("PUT", bytes.NewBuffer(recordJSON), dnsPath, record.ID())
-	if err != nil {
-		return err
-	}
-
-	err = checkForErrors(resp)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := c.DNSClient.PutDNSRecord(context.Background(), &pb.PutDNSRecordRequest{DnsRecord: &pb.DNSRecord{
+		Name:    record.Name,
+		Type:    record.Type,
+		Ttl:     uint64(record.TTL),
+		Records: record.Records,
+	}})
+	return err
 }
 
 func (c *Client) GetDNSRecordByID(id string) (*DNSRecord, error) {
-	resp, err := c.doRequest("GET", nil, dnsPath, id)
+	name, dtype, err := parseDNSID(id)
 	if err != nil {
 		return nil, err
 	}
-
-	err = checkForErrors(resp)
-	if err != nil {
-		return nil, err
-	}
-
-	var record DNSRecord
-	err = json.NewDecoder(resp.Body).Decode(&record)
-	if err != nil {
-		return nil, err
-	}
-
-	return &record, nil
+	return c.GetDNSRecord(name, dtype)
 }
 
 func (c *Client) GetDNSRecord(name string, recordType string) (*DNSRecord, error) {
-	return c.GetDNSRecordByID(id(name, recordType))
+	record, err := c.DNSClient.GetDNSRecord(context.Background(), &pb.DNSRecordIdentifier{
+		Name: name,
+		Type: recordType,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &DNSRecord{
+		Name:    record.Name,
+		Type:    record.Type,
+		TTL:     int(record.Ttl),
+		Records: record.Records,
+	}, err
 }
 
 func (c *Client) DeleteDNSRecordByID(id string) error {
-	resp, err := c.doRequest("DELETE", nil, dnsPath, id)
+	name, dtype, err := parseDNSID(id)
 	if err != nil {
 		return err
 	}
-
-	err = checkForErrors(resp)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return c.DeleteDNSRecord(name, dtype)
 }
 
 func (c *Client) DeleteDNSRecord(name string, recordType string) error {
-	return c.DeleteDNSRecordByID(id(name, recordType))
+	_, err := c.DNSClient.DeleteDNSRecord(context.Background(), &pb.DNSRecordIdentifier{
+		Name: name,
+		Type: recordType,
+	})
+	return err
 }

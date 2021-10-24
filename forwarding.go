@@ -1,9 +1,12 @@
 package restvirt
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/verbit/restvirt-client/pb"
 )
 
 type PortForwarding struct {
@@ -13,57 +16,59 @@ type PortForwarding struct {
 	Protocol   string `json:"protocol"`
 }
 
-var forwardingPath = "forwardings"
+func parsePortForwardingID(id string) (uint16, string, error) {
+	s := strings.Split(id, "-")
+	if len(s) != 2 {
+		return 0, "", fmt.Errorf("ID looks fishy")
+	}
+	port, err := strconv.ParseUint(s[0], 10, 16)
+	if err != nil {
+		return 0, "", err
+	}
+	return uint16(port), s[1], nil
+}
 
 func (c *Client) CreatePortForwarding(forwarding PortForwarding) (string, error) {
-	forwardingJSON, err := json.Marshal(forwarding)
+	f, err := c.PortForwardingServiceClient.PutPortForwarding(context.Background(), &pb.PutPortForwardingRequest{PortForwarding: &pb.PortForwarding{
+		Protocol:   forwarding.Protocol,
+		SourcePort: uint32(forwarding.SourcePort),
+		TargetIp:   forwarding.TargetIP,
+		TargetPort: uint32(forwarding.TargetPort),
+	}})
 	if err != nil {
 		return "", err
 	}
-
-	resp, err := c.doRequest("POST", bytes.NewBuffer(forwardingJSON), forwardingPath)
-	if err != nil {
-		return "", err
-	}
-
-	err = checkForErrors(resp)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%d-%s", int(forwarding.SourcePort), forwarding.Protocol), nil
+	return fmt.Sprintf("%d-%s", f.SourcePort, f.Protocol), nil
 }
 
 func (c *Client) GetPortForwarding(id string) (*PortForwarding, error) {
-	resp, err := c.doRequest("GET", nil, forwardingPath, id)
+	sourcePort, protocol, err := parsePortForwardingID(id)
 	if err != nil {
 		return nil, err
 	}
-
-	err = checkForErrors(resp)
+	f, err := c.PortForwardingServiceClient.GetPortForwarding(context.Background(), &pb.PortForwardingIdentifier{
+		Protocol:   protocol,
+		SourcePort: uint32(sourcePort),
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	var forwarding PortForwarding
-	err = json.NewDecoder(resp.Body).Decode(&forwarding)
-	if err != nil {
-		return nil, err
-	}
-
-	return &forwarding, nil
+	return &PortForwarding{
+		SourcePort: uint16(f.SourcePort),
+		TargetPort: uint16(f.TargetPort),
+		TargetIP:   f.TargetIp,
+		Protocol:   f.Protocol,
+	}, nil
 }
 
 func (c *Client) DeletePortForwarding(id string) error {
-	resp, err := c.doRequest("DELETE", nil, forwardingPath, id)
+	sourcePort, protocol, err := parsePortForwardingID(id)
 	if err != nil {
 		return err
 	}
-
-	err = checkForErrors(resp)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err = c.PortForwardingServiceClient.DeletePortForwarding(context.Background(), &pb.PortForwardingIdentifier{
+		Protocol:   protocol,
+		SourcePort: uint32(sourcePort),
+	})
+	return err
 }

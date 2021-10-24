@@ -1,78 +1,72 @@
 package restvirt
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"path"
-	"time"
 
+	"github.com/verbit/restvirt-client/pb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 	"gopkg.in/yaml.v2"
 )
 
 type Client struct {
-	Host       string
-	Username   string
-	Password   string
-	HTTPClient *http.Client
+	Username                    string
+	Password                    string
+	DNSClient                   pb.DNSClient
+	DomainServiceClient         pb.DomainServiceClient
+	PortForwardingServiceClient pb.PortForwardingServiceClient
+	RouteServiceClient          pb.RouteServiceClient
+	VolumeServiceClient         pb.VolumeServiceClient
 }
 
 type ClientConfig struct {
-	Host     string `yaml:"host"`
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-	HostCA   string `yaml:"ca"`
-}
-
-type RestvirtRoundTripper struct {
-	username string
-	password string
-	wrapped  http.RoundTripper
+	Host       string `yaml:"host"`
+	Username   string `yaml:"username"`
+	Password   string `yaml:"password"`
+	HostCA     string `yaml:"ca"`
+	ClientCert string `yaml:"cert"`
+	ClientKey  string `yaml:"key"`
 }
 
 type ErrorMessage struct {
 	Error string
 }
 
-type NotFoundError struct{}
+type NotFoundError struct {
+	grpcStatus *status.Status
+}
 
 func (e *NotFoundError) Error() string {
 	return "not found"
 }
 
-func NewRoundTripper(wrapped http.RoundTripper, username string, password string) *RestvirtRoundTripper {
-	return &RestvirtRoundTripper{
-		username: username,
-		password: password,
-		wrapped:  wrapped,
-	}
+func (e *NotFoundError) GRPCStatus() *status.Status {
+	return e.grpcStatus
 }
 
-func (r *RestvirtRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.SetBasicAuth(r.username, r.password)
-	return r.wrapped.RoundTrip(req)
-}
-
-func NewClient(host string, username string, password string) (*Client, error) {
-	c := Client{
-		Host:       host,
-		Username:   username,
-		Password:   password,
-		HTTPClient: &http.Client{},
+func errorWrapper(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	err := invoker(ctx, method, req, reply, cc, opts...)
+	sErr := status.Convert(err)
+	if sErr.Code() == codes.NotFound {
+		return &NotFoundError{
+			grpcStatus: sErr,
+		}
 	}
-
-	return &c, nil
+	return err
 }
 
 func NewClientFromConfig(config ClientConfig) (*Client, error) {
+	opts := []grpc.DialOption{
+		grpc.WithUnaryInterceptor(errorWrapper),
+	}
 	var tlsConfig *tls.Config = nil
 	if config.HostCA != "" {
 		rootCAs, _ := x509.SystemCertPool()
@@ -80,41 +74,40 @@ func NewClientFromConfig(config ClientConfig) (*Client, error) {
 			rootCAs = x509.NewCertPool()
 		}
 
-		hostCAPEM, err := base64.StdEncoding.DecodeString(config.HostCA)
-		if err != nil {
-			return nil, err
-		}
-
-		if ok := rootCAs.AppendCertsFromPEM(hostCAPEM); !ok {
+		if ok := rootCAs.AppendCertsFromPEM([]byte(config.HostCA)); !ok {
 			return nil, fmt.Errorf("couldn't append hosts's CA to the bundle")
 		}
 
-		tlsConfig = &tls.Config{
-			RootCAs: rootCAs,
+		var certs = []tls.Certificate{}
+		if config.ClientCert != "" || config.ClientKey != "" {
+			clientKeyPair, err := tls.X509KeyPair([]byte(config.ClientCert), []byte(config.ClientKey))
+			if err != nil {
+				return nil, err
+			}
+			certs = append(certs, clientKeyPair)
 		}
+
+		tlsConfig = &tls.Config{
+			RootCAs:      rootCAs,
+			Certificates: certs,
+		}
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	} else {
+		opts = append(opts, grpc.WithInsecure())
 	}
 
-	var httpTransport http.RoundTripper = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       tlsConfig,
+	conn, err := grpc.Dial(config.Host, opts...)
+	if err != nil {
+		return nil, err
 	}
-	httpTransport = NewRoundTripper(httpTransport, config.Username, config.Password)
-	client := &http.Client{Transport: httpTransport}
-
 	c := Client{
-		Host:       config.Host,
-		Username:   config.Username,
-		Password:   config.Password,
-		HTTPClient: client,
+		Username:                    config.Username,
+		Password:                    config.Password,
+		DNSClient:                   pb.NewDNSClient(conn),
+		DomainServiceClient:         pb.NewDomainServiceClient(conn),
+		PortForwardingServiceClient: pb.NewPortForwardingServiceClient(conn),
+		RouteServiceClient:          pb.NewRouteServiceClient(conn),
+		VolumeServiceClient:         pb.NewVolumeServiceClient(conn),
 	}
 
 	return &c, nil
@@ -151,72 +144,4 @@ func NewClientFromEnvironment() (*Client, error) {
 	}
 
 	return NewClientFromConfig(config)
-}
-
-func (c *Client) doRequest(method string, body io.Reader, paths ...string) (*http.Response, error) {
-	return c.doRequestWithQueryParams(method, body, []KeyValue{}, paths...)
-}
-
-type KeyValue struct {
-	Key   string
-	Value string
-}
-
-func (c *Client) doRequestWithQueryParams(method string, body io.Reader, query []KeyValue, paths ...string) (*http.Response, error) {
-	u, err := url.Parse(c.Host)
-	if err != nil {
-		return nil, err
-	}
-	ps := append([]string{u.Path}, paths...)
-	u.Path = path.Join(ps...)
-	request, err := http.NewRequest(method, u.String(), body)
-	if err != nil {
-		return nil, err
-	}
-	q := request.URL.Query()
-	for _, kv := range query {
-		q.Add(kv.Key, kv.Value)
-	}
-	request.URL.RawQuery = q.Encode()
-	request.Header.Set("Content-Type", "application/json")
-	return c.HTTPClient.Do(request)
-}
-
-func hasValidStatusCode(resp *http.Response) bool {
-	if resp == nil {
-		return false
-	}
-	code := resp.StatusCode
-	req := resp.Request
-	if req == nil {
-		return code == http.StatusOK
-	}
-	switch req.Method {
-	case "POST":
-		return code == http.StatusOK ||
-			code == http.StatusCreated
-	case "PUT":
-		return code == http.StatusOK ||
-			code == http.StatusCreated ||
-			code == http.StatusNoContent
-	default:
-		return code == http.StatusOK
-	}
-}
-
-func checkForErrors(resp *http.Response) error {
-	if hasValidStatusCode(resp) {
-		return nil
-	}
-
-	if resp.StatusCode == http.StatusNotFound {
-		return &NotFoundError{}
-	}
-
-	var errorMessage ErrorMessage
-	err := json.NewDecoder(resp.Body).Decode(&errorMessage)
-	if err != nil {
-		return err
-	}
-	return fmt.Errorf("restvirt client error: %s", errorMessage.Error)
 }
