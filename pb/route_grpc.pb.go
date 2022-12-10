@@ -27,6 +27,7 @@ type RouteServiceClient interface {
 	ListRoutes(ctx context.Context, in *ListRoutesRequest, opts ...grpc.CallOption) (*ListRoutesResponse, error)
 	PutRoute(ctx context.Context, in *PutRouteRequest, opts ...grpc.CallOption) (*Route, error)
 	DeleteRoute(ctx context.Context, in *RouteIdentifier, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Sync(ctx context.Context, in *SyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type routeServiceClient struct {
@@ -109,6 +110,15 @@ func (c *routeServiceClient) DeleteRoute(ctx context.Context, in *RouteIdentifie
 	return out, nil
 }
 
+func (c *routeServiceClient) Sync(ctx context.Context, in *SyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/RouteService/Sync", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RouteServiceServer is the server API for RouteService service.
 // All implementations must embed UnimplementedRouteServiceServer
 // for forward compatibility
@@ -121,6 +131,7 @@ type RouteServiceServer interface {
 	ListRoutes(context.Context, *ListRoutesRequest) (*ListRoutesResponse, error)
 	PutRoute(context.Context, *PutRouteRequest) (*Route, error)
 	DeleteRoute(context.Context, *RouteIdentifier) (*emptypb.Empty, error)
+	Sync(context.Context, *SyncRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedRouteServiceServer()
 }
 
@@ -151,6 +162,9 @@ func (UnimplementedRouteServiceServer) PutRoute(context.Context, *PutRouteReques
 }
 func (UnimplementedRouteServiceServer) DeleteRoute(context.Context, *RouteIdentifier) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteRoute not implemented")
+}
+func (UnimplementedRouteServiceServer) Sync(context.Context, *SyncRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Sync not implemented")
 }
 func (UnimplementedRouteServiceServer) mustEmbedUnimplementedRouteServiceServer() {}
 
@@ -309,6 +323,24 @@ func _RouteService_DeleteRoute_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RouteService_Sync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RouteServiceServer).Sync(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/RouteService/Sync",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RouteServiceServer).Sync(ctx, req.(*SyncRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RouteService_ServiceDesc is the grpc.ServiceDesc for RouteService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -348,7 +380,11 @@ var RouteService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DeleteRoute",
 			Handler:    _RouteService_DeleteRoute_Handler,
 		},
+		{
+			MethodName: "Sync",
+			Handler:    _RouteService_Sync_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "route.proto",
+	Metadata: "minivirt/route.proto",
 }

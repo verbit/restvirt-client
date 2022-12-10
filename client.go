@@ -25,6 +25,8 @@ type Client struct {
 	PortForwardingServiceClient pb.PortForwardingServiceClient
 	RouteServiceClient          pb.RouteServiceClient
 	VolumeServiceClient         pb.VolumeServiceClient
+	ControllerServiceClient     pb.ControllerServiceClient
+	HostServiceClient           pb.HostServiceClient
 }
 
 type ClientConfig struct {
@@ -108,6 +110,8 @@ func NewClientFromConfig(config ClientConfig) (*Client, error) {
 		PortForwardingServiceClient: pb.NewPortForwardingServiceClient(conn),
 		RouteServiceClient:          pb.NewRouteServiceClient(conn),
 		VolumeServiceClient:         pb.NewVolumeServiceClient(conn),
+		ControllerServiceClient:     pb.NewControllerServiceClient(conn),
+		HostServiceClient:           pb.NewHostServiceClient(conn),
 	}
 
 	return &c, nil

@@ -206,5 +206,5 @@ var PortForwardingService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "port_forwarding.proto",
+	Metadata: "minivirt/port_forwarding.proto",
 }

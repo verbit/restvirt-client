@@ -23,6 +23,11 @@ type DomainServiceClient interface {
 	ListDomains(ctx context.Context, in *ListDomainsRequest, opts ...grpc.CallOption) (*ListDomainsResponse, error)
 	CreateDomain(ctx context.Context, in *CreateDomainRequest, opts ...grpc.CallOption) (*Domain, error)
 	DeleteDomain(ctx context.Context, in *DeleteDomainRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DownloadImage(ctx context.Context, in *DownloadImageRequest, opts ...grpc.CallOption) (DomainService_DownloadImageClient, error)
+	GetNetwork(ctx context.Context, in *GetNetworkRequest, opts ...grpc.CallOption) (*Network, error)
+	ListNetworks(ctx context.Context, in *ListNetworksRequest, opts ...grpc.CallOption) (*ListNetworksResponse, error)
+	CreateNetwork(ctx context.Context, in *CreateNetworkRequest, opts ...grpc.CallOption) (*Network, error)
+	DeleteNetwork(ctx context.Context, in *DeleteNetworkRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type domainServiceClient struct {
@@ -69,6 +74,74 @@ func (c *domainServiceClient) DeleteDomain(ctx context.Context, in *DeleteDomain
 	return out, nil
 }
 
+func (c *domainServiceClient) DownloadImage(ctx context.Context, in *DownloadImageRequest, opts ...grpc.CallOption) (DomainService_DownloadImageClient, error) {
+	stream, err := c.cc.NewStream(ctx, &DomainService_ServiceDesc.Streams[0], "/DomainService/DownloadImage", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &domainServiceDownloadImageClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DomainService_DownloadImageClient interface {
+	Recv() (*ImageChunk, error)
+	grpc.ClientStream
+}
+
+type domainServiceDownloadImageClient struct {
+	grpc.ClientStream
+}
+
+func (x *domainServiceDownloadImageClient) Recv() (*ImageChunk, error) {
+	m := new(ImageChunk)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *domainServiceClient) GetNetwork(ctx context.Context, in *GetNetworkRequest, opts ...grpc.CallOption) (*Network, error) {
+	out := new(Network)
+	err := c.cc.Invoke(ctx, "/DomainService/GetNetwork", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *domainServiceClient) ListNetworks(ctx context.Context, in *ListNetworksRequest, opts ...grpc.CallOption) (*ListNetworksResponse, error) {
+	out := new(ListNetworksResponse)
+	err := c.cc.Invoke(ctx, "/DomainService/ListNetworks", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *domainServiceClient) CreateNetwork(ctx context.Context, in *CreateNetworkRequest, opts ...grpc.CallOption) (*Network, error) {
+	out := new(Network)
+	err := c.cc.Invoke(ctx, "/DomainService/CreateNetwork", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *domainServiceClient) DeleteNetwork(ctx context.Context, in *DeleteNetworkRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/DomainService/DeleteNetwork", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DomainServiceServer is the server API for DomainService service.
 // All implementations must embed UnimplementedDomainServiceServer
 // for forward compatibility
@@ -77,6 +150,11 @@ type DomainServiceServer interface {
 	ListDomains(context.Context, *ListDomainsRequest) (*ListDomainsResponse, error)
 	CreateDomain(context.Context, *CreateDomainRequest) (*Domain, error)
 	DeleteDomain(context.Context, *DeleteDomainRequest) (*emptypb.Empty, error)
+	DownloadImage(*DownloadImageRequest, DomainService_DownloadImageServer) error
+	GetNetwork(context.Context, *GetNetworkRequest) (*Network, error)
+	ListNetworks(context.Context, *ListNetworksRequest) (*ListNetworksResponse, error)
+	CreateNetwork(context.Context, *CreateNetworkRequest) (*Network, error)
+	DeleteNetwork(context.Context, *DeleteNetworkRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedDomainServiceServer()
 }
 
@@ -95,6 +173,21 @@ func (UnimplementedDomainServiceServer) CreateDomain(context.Context, *CreateDom
 }
 func (UnimplementedDomainServiceServer) DeleteDomain(context.Context, *DeleteDomainRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDomain not implemented")
+}
+func (UnimplementedDomainServiceServer) DownloadImage(*DownloadImageRequest, DomainService_DownloadImageServer) error {
+	return status.Errorf(codes.Unimplemented, "method DownloadImage not implemented")
+}
+func (UnimplementedDomainServiceServer) GetNetwork(context.Context, *GetNetworkRequest) (*Network, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNetwork not implemented")
+}
+func (UnimplementedDomainServiceServer) ListNetworks(context.Context, *ListNetworksRequest) (*ListNetworksResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListNetworks not implemented")
+}
+func (UnimplementedDomainServiceServer) CreateNetwork(context.Context, *CreateNetworkRequest) (*Network, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateNetwork not implemented")
+}
+func (UnimplementedDomainServiceServer) DeleteNetwork(context.Context, *DeleteNetworkRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteNetwork not implemented")
 }
 func (UnimplementedDomainServiceServer) mustEmbedUnimplementedDomainServiceServer() {}
 
@@ -181,6 +274,99 @@ func _DomainService_DeleteDomain_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DomainService_DownloadImage_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(DownloadImageRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DomainServiceServer).DownloadImage(m, &domainServiceDownloadImageServer{stream})
+}
+
+type DomainService_DownloadImageServer interface {
+	Send(*ImageChunk) error
+	grpc.ServerStream
+}
+
+type domainServiceDownloadImageServer struct {
+	grpc.ServerStream
+}
+
+func (x *domainServiceDownloadImageServer) Send(m *ImageChunk) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _DomainService_GetNetwork_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNetworkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DomainServiceServer).GetNetwork(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/DomainService/GetNetwork",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DomainServiceServer).GetNetwork(ctx, req.(*GetNetworkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DomainService_ListNetworks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListNetworksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DomainServiceServer).ListNetworks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/DomainService/ListNetworks",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DomainServiceServer).ListNetworks(ctx, req.(*ListNetworksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DomainService_CreateNetwork_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateNetworkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DomainServiceServer).CreateNetwork(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/DomainService/CreateNetwork",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DomainServiceServer).CreateNetwork(ctx, req.(*CreateNetworkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DomainService_DeleteNetwork_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteNetworkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DomainServiceServer).DeleteNetwork(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/DomainService/DeleteNetwork",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DomainServiceServer).DeleteNetwork(ctx, req.(*DeleteNetworkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DomainService_ServiceDesc is the grpc.ServiceDesc for DomainService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -204,7 +390,29 @@ var DomainService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DeleteDomain",
 			Handler:    _DomainService_DeleteDomain_Handler,
 		},
+		{
+			MethodName: "GetNetwork",
+			Handler:    _DomainService_GetNetwork_Handler,
+		},
+		{
+			MethodName: "ListNetworks",
+			Handler:    _DomainService_ListNetworks_Handler,
+		},
+		{
+			MethodName: "CreateNetwork",
+			Handler:    _DomainService_CreateNetwork_Handler,
+		},
+		{
+			MethodName: "DeleteNetwork",
+			Handler:    _DomainService_DeleteNetwork_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "domain.proto",
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "DownloadImage",
+			Handler:       _DomainService_DownloadImage_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "minivirt/domain.proto",
 }

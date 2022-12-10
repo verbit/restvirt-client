@@ -22,6 +22,7 @@ type VolumeServiceClient interface {
 	GetVolume(ctx context.Context, in *GetVolumeRequest, opts ...grpc.CallOption) (*Volume, error)
 	ListVolumes(ctx context.Context, in *ListVolumesRequest, opts ...grpc.CallOption) (*ListVolumesResponse, error)
 	CreateVolume(ctx context.Context, in *CreateVolumeRequest, opts ...grpc.CallOption) (*Volume, error)
+	UpdateVolume(ctx context.Context, in *UpdateVolumeRequest, opts ...grpc.CallOption) (*Volume, error)
 	DeleteVolume(ctx context.Context, in *DeleteVolumeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListVolumeAttachments(ctx context.Context, in *ListVolumeAttachmentsRequest, opts ...grpc.CallOption) (*ListVolumeAttachmentsResponse, error)
 	GetVolumeAttachment(ctx context.Context, in *VolumeAttachmentIdentifier, opts ...grpc.CallOption) (*VolumeAttachment, error)
@@ -58,6 +59,15 @@ func (c *volumeServiceClient) ListVolumes(ctx context.Context, in *ListVolumesRe
 func (c *volumeServiceClient) CreateVolume(ctx context.Context, in *CreateVolumeRequest, opts ...grpc.CallOption) (*Volume, error) {
 	out := new(Volume)
 	err := c.cc.Invoke(ctx, "/VolumeService/CreateVolume", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *volumeServiceClient) UpdateVolume(ctx context.Context, in *UpdateVolumeRequest, opts ...grpc.CallOption) (*Volume, error) {
+	out := new(Volume)
+	err := c.cc.Invoke(ctx, "/VolumeService/UpdateVolume", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +126,7 @@ type VolumeServiceServer interface {
 	GetVolume(context.Context, *GetVolumeRequest) (*Volume, error)
 	ListVolumes(context.Context, *ListVolumesRequest) (*ListVolumesResponse, error)
 	CreateVolume(context.Context, *CreateVolumeRequest) (*Volume, error)
+	UpdateVolume(context.Context, *UpdateVolumeRequest) (*Volume, error)
 	DeleteVolume(context.Context, *DeleteVolumeRequest) (*emptypb.Empty, error)
 	ListVolumeAttachments(context.Context, *ListVolumeAttachmentsRequest) (*ListVolumeAttachmentsResponse, error)
 	GetVolumeAttachment(context.Context, *VolumeAttachmentIdentifier) (*VolumeAttachment, error)
@@ -136,6 +147,9 @@ func (UnimplementedVolumeServiceServer) ListVolumes(context.Context, *ListVolume
 }
 func (UnimplementedVolumeServiceServer) CreateVolume(context.Context, *CreateVolumeRequest) (*Volume, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateVolume not implemented")
+}
+func (UnimplementedVolumeServiceServer) UpdateVolume(context.Context, *UpdateVolumeRequest) (*Volume, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateVolume not implemented")
 }
 func (UnimplementedVolumeServiceServer) DeleteVolume(context.Context, *DeleteVolumeRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteVolume not implemented")
@@ -215,6 +229,24 @@ func _VolumeService_CreateVolume_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(VolumeServiceServer).CreateVolume(ctx, req.(*CreateVolumeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VolumeService_UpdateVolume_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateVolumeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VolumeServiceServer).UpdateVolume(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/VolumeService/UpdateVolume",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VolumeServiceServer).UpdateVolume(ctx, req.(*UpdateVolumeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -329,6 +361,10 @@ var VolumeService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _VolumeService_CreateVolume_Handler,
 		},
 		{
+			MethodName: "UpdateVolume",
+			Handler:    _VolumeService_UpdateVolume_Handler,
+		},
+		{
 			MethodName: "DeleteVolume",
 			Handler:    _VolumeService_DeleteVolume_Handler,
 		},
@@ -350,5 +386,5 @@ var VolumeService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "volume.proto",
+	Metadata: "minivirt/volume.proto",
 }

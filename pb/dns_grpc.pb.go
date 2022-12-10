@@ -206,5 +206,5 @@ var DNS_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "dns.proto",
+	Metadata: "minivirt/dns.proto",
 }
